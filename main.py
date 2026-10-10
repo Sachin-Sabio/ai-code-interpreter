@@ -46,7 +46,9 @@ def execute_python_code(code: str) -> dict:
     if not SLOTS.acquire(blocking=False):
         raise HTTPException(503, 'Execution capacity reached')
     try:
-        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryFile(mode='w+b') as out, tempfile.TemporaryFile(mode='w+b') as err:
+        with tempfile.TemporaryDirectory() as directory, open(Path(directory) / 'stdout', 'w+b') as out, open(Path(directory) / 'stderr', 'w+b') as err:
+            if sys.platform == 'darwin':
+                command[2] += '(allow file-write-data (literal ' + json.dumps(out.name) + ') (literal ' + json.dumps(err.name) + '))'
             # No API credentials or server environment are passed to the worker.
             process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=out,
                                        stderr=err, text=True, cwd=directory,
@@ -58,6 +60,8 @@ def execute_python_code(code: str) -> dict:
                 process.communicate()
                 return {'success': False, 'output': 'TimeoutError: execution exceeded time limit\n'}
             if process.returncode:
+                if process.returncode == -signal.SIGXFSZ:
+                    return {'success': False, 'output': 'RuntimeError: execution output limit exceeded\n'}
                 if process.returncode == -signal.SIGKILL or process.returncode == -signal.SIGXCPU:
                     return {'success': False, 'output': 'TimeoutError: execution exceeded resource limit\n'}
                 raise HTTPException(503, 'Execution sandbox failed')
