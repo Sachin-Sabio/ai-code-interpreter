@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: iitm-ai-code-interpreter
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: AIPIPE_TOKEN
+        sync: false
+      - key: AIPIPE_MODEL
+        value: openai/gpt-4.1-nano
